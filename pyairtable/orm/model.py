@@ -127,7 +127,7 @@ class Model:
         ...
         >>> Test._field_name_attribute_map()
         >>> {
-        ...     "First Name": "first_name"
+        ...     "First Name": "first_name",
         ...     "Age": "age"
         ... }
         """
