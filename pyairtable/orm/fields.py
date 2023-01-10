@@ -362,11 +362,7 @@ class DurationField(Field[int, timedelta]):
     Airtable's API returns this as a number of seconds.
     """
 
-<<<<<<< HEAD
     valid_types = timedelta
-=======
-    def __init__(self, field_name, model: Union[str, Type[T_Linked]] = Field) -> None:
->>>>>>> 8c88d69 (Update fields.py)
 
     def to_record_value(self, value: timedelta) -> float:
         """
