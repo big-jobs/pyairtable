@@ -264,14 +264,17 @@ class Model(metaclass=abc.ABCMeta):
         raise_key_error = getattr(cls.Meta, 'raise_key_error', True)
 
         if raise_key_error:
-            # Convert Column Names into model field names
-            # Use field's to_internal to cast into model fields
-            kwargs = {
-                name_attr_map[k]: name_field_map[k].to_internal_value(v)
-                for k, v in record["fields"].items()
-                # Silently proceed if Airtable returns fields we don't recognize
-                if k in name_attr_map
-            }
+            try:
+                # Convert Column Names into model field names
+                # Use field's to_internal to cast into model fields
+                kwargs = {
+                    name_attr_map[k]: name_field_map[k].to_internal_value(v)
+                    for k, v in record["fields"].items()
+                    # Silently proceed if Airtable returns fields we don't recognize
+                    if k in name_attr_map
+                }
+            except KeyError as exc:
+                raise ValueError("Invalid Field Name: {} for model {}".format(exc, cls))
         else:
             kwargs = {
                 name_attr_map[k]: name_field_map[k].to_internal_value(v)
