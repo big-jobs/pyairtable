@@ -4,13 +4,16 @@ Helper functions for writing tests that use the pyairtable library.
 import datetime
 import random
 import string
+from typing import Any, Optional
+
+from pyairtable.api.types import AttachmentDict, CollaboratorDict, Fields, RecordDict
 
 
-def fake_id(type="rec", value=None):
+def fake_id(type: str = "rec", value: Any = None) -> str:
     """
     Generates a fake Airtable-style ID.
 
-    Keyword Args:
+    Args:
         type: the object type prefix, defaults to "rec"
         value: any value to use as the ID, defaults to random letters and digits
 
@@ -27,10 +30,10 @@ def fake_id(type="rec", value=None):
 
 
 def fake_meta(
-    base_id="appFakeTestingApp",
-    table_name="tblFakeTestingTbl",
-    api_key="patFakePersonalAccessToken",
-):
+    base_id: str = "appFakeTestingApp",
+    table_name: str = "tblFakeTestingTbl",
+    api_key: str = "patFakePersonalAccessToken",
+) -> type:
     """
     Returns a ``Meta`` class for inclusion in a ``Model`` subclass.
     """
@@ -38,7 +41,11 @@ def fake_meta(
     return type("Meta", (), attrs)
 
 
-def fake_record(fields=None, id=None, **other_fields):
+def fake_record(
+    fields: Optional[Fields] = None,
+    id: Optional[str] = None,
+    **other_fields: Any,
+) -> RecordDict:
     """
     Returns a fake record dict with the given field values.
 
@@ -55,4 +62,19 @@ def fake_record(fields=None, id=None, **other_fields):
         "id": fake_id(value=id),
         "createdTime": datetime.datetime.now().isoformat() + "Z",
         "fields": {**(fields or {}), **other_fields},
+    }
+
+
+def fake_user(value: Any = None) -> CollaboratorDict:
+    id = fake_id("usr", value)
+    return {"id": id, "email": f"{value or id}@example.com"}
+
+
+def fake_attachment() -> AttachmentDict:
+    return {
+        "id": fake_id("att"),
+        "url": "https://example.com/",
+        "filename": "foo.txt",
+        "size": 100,
+        "type": "text/plain",
     }

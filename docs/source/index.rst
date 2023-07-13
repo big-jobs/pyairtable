@@ -6,7 +6,7 @@ pyAirtable
 
 .. container:: .large
 
-   Python Client for the `Airtable Api <https://airtable.com/api>`_
+   Python Client for the `Airtable API <https://airtable.com/api>`_
 
 .. container:: .buttons
 
@@ -23,10 +23,11 @@ pyAirtable
    :hidden:
 
    getting-started
-   api
-   utils
-   experimental
+   tables
+   orm
+   metadata
    migrations
+   api
 
 
 .. toctree::
@@ -35,6 +36,6 @@ pyAirtable
 
    about
    changelog
-   Airtable Api Docs <https://airtable.com/api>
+   Airtable API Docs <https://airtable.com/api>
    GitHub <https://github.com/gtalarico/pyairtable>
    PyPI <https://pypi.org/project/pyairtable/>
