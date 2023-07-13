@@ -89,8 +89,8 @@ table, whichever is shorter.
 
   >>> for records in table.iterate(page_size=100, max_records=1000):
   ...     print(records)
-  [{id:'rec123asa23', fields': {'Last Name': 'Alfred', "Age": 84}, ...}, ... ]
-  [{id:'rec123asa23', fields': {'Last Name': 'Jameson', "Age": 42}, ...}, ... ]
+  [{'id': 'rec123asa23', 'fields': {'Last Name': 'Alfred', 'Age': 84}, ...}, ...]
+  [{'id': 'rec123asa23', 'fields': {'Last Name': 'Jameson', 'Age': 42}, ...}, ...]
 
 :meth:`~pyairtable.api.Table.all`
 
@@ -100,7 +100,7 @@ hood it uses :meth:`~pyairtable.api.Table.iterate` to fetch records so multiple 
 .. code-block:: python
 
   >>> table.all(sort=["First Name", "-Age"]):
-  [{id:'rec123asa23', fields': {'Last Name': 'Alfred', "Age": 84}, ...}, ... ]
+  [{'id': 'rec123asa23', 'fields': {'Last Name': 'Alfred', 'Age': 84}, ...}, ...]
 
 
 Creating Records
@@ -113,7 +113,7 @@ Creates a single record from a dictionary representing the table's fields.
 .. code-block:: python
 
   >>> table.create({'First Name': 'John'})
-  {id:'rec123asa23', fields': {'First Name': 'John', ...}}
+  {'id': 'rec123asa23', 'fields': {'First Name': 'John', ...}}
 
 
 :meth:`~pyairtable.api.Table.batch_create`
@@ -123,7 +123,7 @@ Batch create records from a list of dictionaries representing the table's fields
 .. code-block:: python
 
   >>> table.batch_create([{'First Name': 'John'}, ...])
-  [{id:'rec123asa23', fields': {'First Name': 'John', ...}}, ...]
+  [{'id': 'rec123asa23', 'fields': {'First Name': 'John'}}, ...]
 
 
 Updating Records
@@ -137,7 +137,7 @@ dictionary representing the table's fields.
 .. code-block:: python
 
   >>> table.update('recwPQIfs4wKPyc9D', {"Age": 21})
-  [{id:'recwPQIfs4wKPyc9D', fields': {"First Name": "John", "Age": 21, ...}}, ...]
+  [{'id': 'recwPQIfs4wKPyc9D', 'fields': {"First Name": "John", "Age": 21}}, ...]
 
 
 :meth:`~pyairtable.api.Table.batch_update`
@@ -147,7 +147,23 @@ Batch update records from a list of records.
 .. code-block:: python
 
   >>> table.batch_update([{"id": "recwPQIfs4wKPyc9D", "fields": {"First Name": "Matt"}}, ...])
-  [{id:'recwPQIfs4wKPyc9D', fields': {"First Name": "Matt", "Age": 21, ...}}, ...]
+  [{'id': 'recwPQIfs4wKPyc9D', 'fields': {"First Name": "Matt", ...}}, ...]
+
+
+:meth:`~pyairtable.api.Table.batch_upsert`
+
+.. versionadded:: 1.5.0
+
+Batch upsert (create or update) records from a list of records. For details on the behavior
+of this Airtable API endpoint, see `Update multiple records <https://airtable.com/developers/web/api/update-multiple-records#request-performupsert-fieldstomergeon>`_.
+
+.. code-block:: python
+
+  >>> table.batch_upsert(
+  ...     [{"id": "recwPQIfs4wKPyc9D", "fields": {"First Name": "Matt"}}, ...],
+  ...     key_fields=["First Name"]
+  ... )
+  [{'id': 'recwPQIfs4wKPyc9D', 'fields': {'First Name': 'Matt', 'Age': 21, ...}}, ...]
 
 
 Deleting Records
@@ -160,7 +176,7 @@ Deletes a single record using the provided ``record_id``.
 .. code-block:: python
 
   >>> table.delete('recwPQIfs4wKPyc9D')
-  { "deleted": True, ... }
+  {'deleted': True, 'id': 'recwPQIfs4wKPyc9D'}
 
 :meth:`~pyairtable.api.Table.batch_delete`
 
@@ -168,56 +184,60 @@ Batch delete records using a list of record ids.
 
 .. code-block:: python
 
-  >>> table.batch_delete(['recwPQIfs4wKPyc9D', 'recwAcQdqwe21as'])
-  [  { "deleted": True, ... }, ... ]
+  >>> table.batch_delete(['recwPQIfs4wKPyc9D', 'recwAcQdqwe21asdf'])
+  [{'deleted': True, 'id': 'recwPQIfs4wKPyc9D'},
+   {'deleted': True, 'id': 'recwAcQdqwe21asdf'}]
 
 
 Return Values
 -------------
 
 Return Values: when records are returned,
-will most often be alist of Airtable records (dictionary) in a format as shown below.
+will most often be a list of Airtable records (dictionary) in a format as shown below.
 
 .. code-block:: python
 
   >>> table.all()
-  ... [{
-  ...     "records": [
-  ...         {
-  ...             "id": "recwPQIfs4wKPyc9D",
-  ...             "fields": {
-  ...                 "COLUMN_ID": "1",
-  ...             },
-  ...             "createdTime": "2017-03-14T22:04:31.000Z"
-  ...         },
-  ...         {
-  ...             "id": "rechOLltN9SpPHq5o",
-  ...             "fields": {
-  ...                 "COLUMN_ID": "2",
-  ...             },
-  ...             "createdTime": "2017-03-20T15:21:50.000Z"
-  ...         },
-  ...         {
-  ...             "id": "rec5eR7IzKSAOBHCz",
-  ...             "fields": {
-  ...                 "COLUMN_ID": "3",
-  ...             },
-  ...             "createdTime": "2017-08-05T21:47:52.000Z"
-  ...         }
-  ...     ],
-  ...     "offset": "rec5eR7IzKSAOBHCz"
-  ... }, ... ]
+  [
+      {
+          "records": [
+              {
+                  "id": "recwPQIfs4wKPyc9D",
+                  "fields": {
+                      "COLUMN_ID": "1",
+                  },
+                  "createdTime": "2017-03-14T22:04:31.000Z"
+              },
+              {
+                  "id": "rechOLltN9SpPHq5o",
+                  "fields": {
+                      "COLUMN_ID": "2",
+                  },
+                  "createdTime": "2017-03-20T15:21:50.000Z"
+              },
+              {
+                  "id": "rec5eR7IzKSAOBHCz",
+                  "fields": {
+                      "COLUMN_ID": "3",
+                  },
+                  "createdTime": "2017-08-05T21:47:52.000Z"
+              }
+          ],
+          "offset": "rec5eR7IzKSAOBHCz"
+      },
+      ...
+  ]
 
 
-The :class:`~pyairtable.api.Base` class is similar to :class:`~pyairtable.api.Table`, the main difference is that .
+The :class:`~pyairtable.api.Base` class is similar to :class:`~pyairtable.api.Table`, the main difference is that
 `table_name` is not provided during initialization. Instead, it can be
 specified on each request.
 
 .. code-block:: python
 
   >>> base = Base('auth_token', 'base_id')
-  >>> base.all('Contacts)
-  [{id:'rec123asa23', fields': {'Last Name': 'Alfred', "Age": 84}, ... ]
+  >>> base.all('Contacts')
+  [{'id': 'rec123asa23', 'fields': {'Last Name': 'Alfred', 'Age': 84}, ...]
 
 
 -------------------------
@@ -295,7 +315,7 @@ Parameters
 
 Airtable offers a variety of options to control how you fetch data.
 
-Most options in the Airtable Api (eg. ``sort``, ``fields``, etc)
+Most options in the Airtable Api (e.g. ``sort``, ``fields``, etc.)
 have a corresponding ``kwargs`` that can be used with fetching methods like :meth:`~pyairtable.api.Table.iterate`.
 
 
@@ -303,8 +323,8 @@ have a corresponding ``kwargs`` that can be used with fetching methods like :met
    :widths: 25 25 50
    :header-rows: 1
 
-   * - Parameter
-     - Airtable Option
+   * - Keyword Argument
+     - Airtable Parameter
      - Notes
    * - ``max_records``
      - ``maxRecords``
@@ -344,20 +364,19 @@ Formulas
 
 .. versionadded:: 1.0.0
 
-The formula module provides funcionality to help you compose airtable formulas.
+The formula module provides functionality to help you compose Airtable formulas.
 For more information see `Airtable Formula Reference <https://support.airtable.com/hc/en-us/articles/203255215-Formula-field-reference>`_
 
 Match
 ---------------
 
 :func:`~pyairtable.formulas.match` helps you build a formula to check for equality
-against a python dictionary:
+against a Python dictionary:
 
 .. code-block:: python
 
   >>> from pyairtable import Table
   >>> from pyairtable.formulas import match
-  >>>
   >>> table = Table("auth_token", "base_id", "Contact")
   >>> formula = match({"First Name": "John", "Age": 21})
   >>> table.first(formula=formula)
@@ -392,4 +411,3 @@ can use if you want to compose formulas:
 .. autofunction:: pyairtable.formulas.IF
 .. autofunction:: pyairtable.formulas.STR_VALUE
 .. autofunction:: pyairtable.formulas.LOWER
-

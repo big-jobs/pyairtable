@@ -52,16 +52,7 @@ In other words, you can transverse related records through their ``Link Fields``
 """
 import abc
 from datetime import date, datetime
-from typing import (
-    Any,
-    TypeVar,
-    Type,
-    Generic,
-    Optional,
-    List,
-    TYPE_CHECKING,
-    Union,
-)
+from typing import TYPE_CHECKING, Any, Generic, List, Optional, Type, TypeVar, Union
 
 from pyairtable import utils
 
@@ -231,11 +222,17 @@ class DateField(Field):
 
 
 class LookupField(Field):
-    """Airtable Lookup Fields. Uses ``list`` to store value"""
+    """
+    Airtable Lookup Fields. Uses ``list`` to store value
+
+    .. versionadded:: 1.5.0
+
+    """
 
     def __init__(self, field_name, model: Union[str, Type[T_Linked]] = Field) -> None:
 
         if isinstance(model, str):
+            # raise NotImplementedError("path import not implemented")
             model = cast(Type[T_Linked], locate(model))
 
         self._model = model
@@ -248,7 +245,9 @@ class LookupField(Field):
 
     def valid_or_raise(self, value) -> None:
         if not isinstance(value, list):
-            raise ValueError(f"LookupField '{self.field_name}' value ({value}) must be a 'list'")
+            raise ValueError(
+                f"LookupField '{self.field_name}' value ({value}) must be a 'list'"
+            )
 
     def __get__(self, *args, **kwargs) -> Optional[list]:
         return super().__get__(*args, **kwargs)
@@ -301,6 +300,7 @@ class LinkField(Field, Generic[T_Linked]):
             or self._model.from_id(id_, fetch=should_fetch)
             for id_ in value
         ]
+        # commented this to remove caching for linked field.
         # self._model._linked_cache.update({m.id: m for m in linked_models})
         return linked_models
 

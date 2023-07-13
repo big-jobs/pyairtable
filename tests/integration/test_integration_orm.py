@@ -1,11 +1,13 @@
-import pytest
 import os
 from datetime import datetime
+
+import pytest
+
 from pyairtable.orm import Model
 from pyairtable.orm import fields as f
+from tests.integration.conftest import BASE_ID
 
-
-BASE_ID = "appaPqizdsNHDvlEm"
+pytestmark = [pytest.mark.integration]
 
 
 @pytest.fixture
@@ -51,7 +53,6 @@ def Contact(Address):
     table.batch_delete([r["id"] for r in records])
 
 
-@pytest.mark.integration
 def test_integration_orm(Contact, Address):
     STREET = "123 Han"
     address = Address(street=STREET)
@@ -87,3 +88,36 @@ def test_integration_orm(Contact, Address):
     assert not rv_address_2.street
     rv_address_2.fetch()
     assert rv_address_2.street == rv_address.street == STREET
+
+
+def test_undeclared_fields():
+    """
+    Test that if our ORM is missing some fields, it does not fail on retrieval
+    and does not clobber their values on save.
+    """
+
+    class Contact(Model):
+        first_name = f.TextField("First Name")
+        last_name = f.TextField("Last Name")
+
+        class Meta:
+            base_id = BASE_ID
+            api_key = os.environ["AIRTABLE_API_KEY"]
+            table_name = "Contact"
+
+    table = Contact.get_table()
+    record = table.create(
+        {
+            "First Name": "Alice",
+            "Last Name": "Arnold",
+            "Email": "alice@example.com",
+            "Birthday": "1970-01-01",
+        }
+    )
+
+    # This should not raise an exception
+    contact = Contact.from_id(record["id"])
+
+    # This should not clobber the values in 'Email' or 'Birthday'
+    contact.save()
+    assert table.get(record["id"]) == record

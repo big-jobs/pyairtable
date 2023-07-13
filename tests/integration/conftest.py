@@ -1,7 +1,10 @@
 import os
+
 import pytest
 
 from pyairtable import Base, Table
+
+BASE_ID = "appaPqizdsNHDvlEm"
 
 
 @pytest.fixture
@@ -19,7 +22,9 @@ def cols():
     class Columns:
         # Table should have these Columns
         TEXT = "text"  # Text
+        TEXT_ID = "fldzbVdWW4xJdZ1em"  # for returnFieldsByFieldId
         NUM = "number"  # Number, float
+        NUM_ID = "fldFLyuxGuWobyMV2"  # for returnFieldsByFieldId
         BOOL = "boolean"  # Boolean
         DATETIME = "datetime"  # Datetime
         ATTACHMENT = "attachment"  # attachment
@@ -29,7 +34,7 @@ def cols():
 
 @pytest.fixture
 def base():
-    base_id = "appaPqizdsNHDvlEm"
+    base_id = BASE_ID
     base = Base(os.environ["AIRTABLE_API_KEY"], base_id)
     yield base
     table_name = "TEST_TABLE"
@@ -39,7 +44,7 @@ def base():
 
 @pytest.fixture
 def table():
-    base_id = "appaPqizdsNHDvlEm"
+    base_id = BASE_ID
     table_name = "TEST_TABLE"
     table = Table(os.environ["AIRTABLE_API_KEY"], base_id, table_name)
     yield table

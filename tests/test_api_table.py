@@ -1,5 +1,6 @@
-import pytest
 from posixpath import join as urljoin
+
+import pytest
 from requests import Request
 from requests_mock import Mocker
 
@@ -20,7 +21,7 @@ def test_repr(table):
 )
 def test_url(base_id, table_name, table_url_suffix):
     table = Table("apikey", base_id, table_name)
-    assert table.table_url == "{0}/{1}".format(table.API_URL, table_url_suffix)
+    assert table.table_url == f"https://api.airtable.com/v0/{table_url_suffix}"
 
 
 def test_chunk(table):
@@ -87,6 +88,22 @@ def test_first(table, mock_response_single):
     assert rv["id"] == mock_response_single["id"]
 
 
+def test_first_via_post(table, mock_response_single):
+    mock_response = {"records": [mock_response_single]}
+    with Mocker() as mock:
+        url = table.table_url + "/listRecords"
+        formula = f"RECORD_ID() != '{'x' * 17000}'"
+        mock_endpoint = mock.post(url, status_code=200, json=mock_response)
+        rv = table.first(formula=formula)
+
+    assert mock_endpoint.last_request.json() == {
+        "filterByFormula": formula,
+        "maxRecords": 1,
+        "pageSize": 1,
+    }
+    assert rv == mock_response_single
+
+
 def test_first_none(table, mock_response_single):
     mock_response = {"records": []}
     with Mocker() as mock:
@@ -127,7 +144,6 @@ def test_all(table, mock_response_list, mock_records):
 
 def test_iterate(table, mock_response_list, mock_records):
     with Mocker() as mock:
-
         mock.get(
             table.table_url,
             status_code=200,
@@ -181,34 +197,67 @@ def test_batch_create(table, mock_records):
     assert seq_equals(resp, mock_records)
 
 
-def test_update(table, mock_response_single):
+@pytest.mark.parametrize("replace,http_method", [(False, "PATCH"), (True, "PUT")])
+def test_update(table, mock_response_single, replace, http_method):
     id_ = mock_response_single["id"]
     post_data = mock_response_single["fields"]
     with Mocker() as mock:
-        mock.patch(
+        mock.register_uri(
+            http_method,
             urljoin(table.table_url, id_),
             status_code=201,
             json=mock_response_single,
             additional_matcher=match_request_data(post_data),
         )
-        resp = table.update(id_, post_data)
+        resp = table.update(id_, post_data, replace=replace)
     assert dict_equals(resp, mock_response_single)
 
 
-def test_batch_update(table, mock_response_batch):
+@pytest.mark.parametrize("replace,http_method", [(False, "PATCH"), (True, "PUT")])
+def test_batch_update(table, mock_response_batch, replace, http_method):
     records = [
         {"id": x["id"], "fields": x["fields"]} for x in mock_response_batch["records"]
     ]
     with Mocker() as mock:
         for chunk in _chunk(mock_response_batch["records"], 10):
-            mock.patch(
+            mock.register_uri(
+                http_method,
                 table.table_url,
                 status_code=201,
                 json={"records": chunk},
             )
-        #
-        resp = table.batch_update(records)
+        resp = table.batch_update(records, replace=replace)
+
     assert resp == mock_response_batch["records"]
+
+
+@pytest.mark.parametrize("replace,http_method", [(False, "PATCH"), (True, "PUT")])
+def test_batch_upsert(table, mock_response_batch, replace, http_method):
+    records = [
+        {"id": x["id"], "fields": x["fields"]} for x in mock_response_batch["records"]
+    ]
+    fields = ["Name"]
+    with Mocker() as mock:
+        for chunk in _chunk(mock_response_batch["records"], 10):
+            mock.register_uri(
+                http_method,
+                table.table_url,
+                status_code=201,
+                json={"records": chunk},
+            )
+        resp = table.batch_upsert(records, key_fields=fields, replace=replace)
+
+    assert resp == mock_response_batch["records"]
+
+
+def test_batch_upsert__missing_field(table, requests_mock):
+    """
+    Test that batch_upsert raises an exception if a record in the input
+    is missing one of the key_fields, since this will create an error
+    on the API.
+    """
+    with pytest.raises(ValueError):
+        table.batch_upsert([{"fields": {"Name": "Alice"}}], key_fields=["Email"])
 
 
 def test_delete(table, mock_response_single):

@@ -61,8 +61,9 @@ True
 
 """
 import abc
+from typing import List, Type, TypeVar
+
 from pyairtable import Table
-from typing import TypeVar, Type, List
 
 from .fields import Field
 
@@ -216,7 +217,7 @@ class Model(metaclass=abc.ABCMeta):
             record = table.create(fields, typecast=self.typecast)
             did_create = True
         else:
-            record = table.update(self.id, fields, replace=True, typecast=self.typecast)
+            record = table.update(self.id, fields, typecast=self.typecast)
             did_create = False
 
         self.id = record["id"]
@@ -269,6 +270,8 @@ class Model(metaclass=abc.ABCMeta):
                 kwargs = {
                     name_attr_map[k]: name_field_map[k].to_internal_value(v)
                     for k, v in record["fields"].items()
+                    # Silently proceed if Airtable returns fields we don't recognize
+                    if k in name_attr_map
                 }
             except KeyError as exc:
                 raise ValueError("Invalid Field Name: {} for model {}".format(exc, cls))

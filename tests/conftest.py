@@ -1,12 +1,12 @@
+from collections import OrderedDict
+from posixpath import join as urljoin
+from urllib.parse import quote, urlencode
+
 import pytest
 from mock import Mock
-
-from posixpath import join as urljoin
 from requests import HTTPError
-from urllib.parse import urlencode, quote
 
-from pyairtable.api import Api, Table, Base
-from collections import OrderedDict
+from pyairtable.api import Api, Base, Table
 
 
 @pytest.fixture
@@ -15,7 +15,7 @@ def url_builder():
 
     def _url_builder(base_id, table_name, params=None):
         urltable_name = quote(table_name, safe="")
-        url = urljoin(Api.API_URL, base_id, urltable_name)
+        url = urljoin(Api.endpoint_url, base_id, urltable_name)
         if params:
             params = OrderedDict(sorted(params.items()))
             url += "?" + urlencode(params)
@@ -34,6 +34,11 @@ def constants():
 @pytest.fixture()
 def api(constants):
     return Api(constants["API_KEY"])
+
+
+@pytest.fixture()
+def api_with_endpoint_url(constants):
+    return Api(constants["API_KEY"], endpoint_url="https://api.example.com")
 
 
 @pytest.fixture()

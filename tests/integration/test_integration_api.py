@@ -1,13 +1,15 @@
 from datetime import datetime
+from uuid import uuid4
 
 import pytest
+
 from pyairtable import Table
 from pyairtable import formulas as fo
 from pyairtable.utils import attachment
-from uuid import uuid4
+
+pytestmark = [pytest.mark.integration]
 
 
-@pytest.mark.integration
 def test_integration_table(table, cols):
     # Create / Get
     rec = table.create({cols.TEXT: "A", cols.NUM: 1, cols.BOOL: True})
@@ -27,15 +29,6 @@ def test_integration_table(table, cols):
     records = table.all()
     assert rec["id"] in [r["id"] for r in records]
     assert cols.NUM in records[0]["fields"]  # col name in "fields"
-
-    # All `return_by_field_ids`
-    records = table.all(return_fields_by_field_id=True)
-    assert cols.NUM not in records[0]["fields"]  # fields returns fieldId
-
-    # Get `return_by_field_ids`
-    record = table.get(records[0]["id"], return_fields_by_field_id=True)
-    assert records[0]["id"] == record["id"]
-    assert cols.NUM not in record["fields"]
 
     # Delete
     rv = table.delete(rec["id"])
@@ -57,7 +50,102 @@ def test_integration_table(table, cols):
     assert len(records) == COUNT
 
 
-@pytest.mark.integration
+def test_return_fields_by_field_id(table: Table, cols):
+    """
+    Test that we can get, create, and update records by field ID vs. name.
+
+    See https://github.com/gtalarico/pyairtable/issues/194
+    """
+    # Create one record with return_fields_by_field_id=True
+    record = table.create({cols.TEXT_ID: "Hello"}, return_fields_by_field_id=True)
+    assert record["fields"][cols.TEXT_ID] == "Hello"
+
+    # Updating a record by field ID does not require any special parameters,
+    # but the return value will have field names (not IDs).
+    updated = table.update(record["id"], {cols.TEXT_ID: "Goodbye"})
+    assert updated["fields"][cols.TEXT] == "Goodbye"
+
+    # This is not supported (422 Client Error: Unprocessable Entity for url)
+    # updated = table.update(
+    #     record["id"],
+    #     {cols.TEXT_ID: "Goodbye"},
+    #     return_fields_by_field_id=True,
+    # )
+    # assert updated["fields"][cols.TEXT_ID] == "Goodbye"
+
+    # Create multiple records with return_fields_by_field_id=True
+    records = table.batch_create(
+        [
+            {cols.TEXT_ID: "Alpha"},
+            {cols.TEXT_ID: "Bravo"},
+            {cols.TEXT_ID: "Charlie"},
+        ],
+        return_fields_by_field_id=True,
+    )
+    assert records[0]["fields"][cols.TEXT_ID] == "Alpha"
+    assert records[1]["fields"][cols.TEXT_ID] == "Bravo"
+    assert records[2]["fields"][cols.TEXT_ID] == "Charlie"
+
+    # Update multiple records with return_fields_by_field_id=True
+    updates = [
+        dict(
+            record,
+            fields={cols.TEXT_ID: "Hello, " + record["fields"][cols.TEXT_ID]},
+        )
+        for record in records
+    ]
+    updated = table.batch_update(updates, return_fields_by_field_id=True)
+    assert updated[0]["fields"][cols.TEXT_ID] == "Hello, Alpha"
+    assert updated[1]["fields"][cols.TEXT_ID] == "Hello, Bravo"
+    assert updated[2]["fields"][cols.TEXT_ID] == "Hello, Charlie"
+
+
+def test_get_records_options(table: Table, cols):
+    """
+    Test that we pass all valid options to the GET endpoint.
+    """
+    rec = table.create({cols.TEXT: "abracadabra"})
+
+    # Test that each supported option works via GET
+    # (or, at least, that we don't get complaints from the API)
+    assert table.all(view="view") == [rec]
+    assert table.all(max_records=1) == [rec]
+    assert table.all(page_size=1) == [rec]
+    assert table.all(offset="") == [rec]
+    assert table.all(fields=[cols.TEXT, cols.NUM]) == [rec]
+    assert table.all(cell_format="json") == [rec]
+    assert table.all(sort=[cols.TEXT, cols.NUM]) == [rec]
+    assert table.all(time_zone="utc") == [rec]
+    assert table.all(user_locale="en-ie") == [rec]
+    assert table.all(return_fields_by_field_id=True) == [
+        {
+            "id": rec["id"],
+            "createdTime": rec["createdTime"],
+            "fields": {cols.TEXT_ID: rec["fields"][cols.TEXT]},
+        }
+    ]
+
+    # Test that each supported parameter works with a POST
+    # (or, at least, that we don't get complaints from the API)
+    formula = f"{cols.TEXT} != '{'x' * 17000}'"
+    assert table.all(formula=formula, view="view") == [rec]
+    assert table.all(formula=formula, max_records=1) == [rec]
+    assert table.all(formula=formula, page_size=1) == [rec]
+    assert table.all(formula=formula, offset="") == [rec]
+    assert table.all(formula=formula, fields=[cols.TEXT, cols.NUM]) == [rec]
+    assert table.all(formula=formula, cell_format="json") == [rec]
+    assert table.all(formula=formula, sort=[cols.TEXT, cols.NUM]) == [rec]
+    assert table.all(formula=formula, time_zone="utc") == [rec]
+    assert table.all(formula=formula, user_locale="en-ie") == [rec]
+    assert table.all(formula=formula, return_fields_by_field_id=True) == [
+        {
+            "id": rec["id"],
+            "createdTime": rec["createdTime"],
+            "fields": {cols.TEXT_ID: rec["fields"][cols.TEXT]},
+        }
+    ]
+
+
 def test_integration_field_equals(table: Table, cols):
     TEXT_VALUE = "Test {}".format(uuid4())
     NUM_VALUE = 12345
@@ -79,7 +167,64 @@ def test_integration_field_equals(table: Table, cols):
     assert rv_first and rv_first["id"] == rv_create["id"]
 
 
-@pytest.mark.integration
+def test_batch_upsert(table: Table, cols):
+    one, two = table.batch_create(
+        [
+            {cols.TEXT: "One"},
+            {cols.TEXT: "Two"},
+        ]
+    )
+
+    # Test batch_upsert where replace=False
+    results = table.batch_upsert(
+        [
+            {"id": one["id"], "fields": {cols.NUM: 3}},  # use id
+            {"fields": {cols.TEXT: "Two", cols.NUM: 4}},  # use key_fields
+            {"fields": {cols.TEXT: "Three", cols.NUM: 5}},  # create record
+        ],
+        key_fields=[cols.TEXT],
+    )
+    assert len(results) == 3
+    assert results[0]["id"] == one["id"]
+    assert results[0]["fields"] == {cols.TEXT: "One", cols.NUM: 3}
+    assert results[1]["id"] == two["id"]
+    assert results[1]["fields"] == {cols.TEXT: "Two", cols.NUM: 4}
+    assert results[2]["fields"] == {cols.TEXT: "Three", cols.NUM: 5}
+
+    # Test batch_upsert where replace=True
+    results = table.batch_upsert(
+        [
+            {"id": one["id"], "fields": {cols.NUM: 3}},  # removes cols.TEXT
+            {"fields": {cols.TEXT: "Two"}},  # removes cols.NUM
+            {"fields": {cols.TEXT: "Three", cols.NUM: 6}},  # replaces cols.NUM
+            {"fields": {cols.TEXT: None, cols.NUM: 7}},  # creates a record
+        ],
+        key_fields=[cols.TEXT],
+        replace=True,
+    )
+    assert len(results) == 4
+    assert results[0]["id"] == one["id"]
+    assert results[0]["fields"] == {cols.NUM: 3}
+    assert results[1]["id"] == two["id"]
+    assert results[1]["fields"] == {cols.TEXT: "Two"}
+    assert results[2]["fields"] == {cols.TEXT: "Three", cols.NUM: 6}
+    assert results[3]["fields"] == {cols.NUM: 7}
+
+    # Test that batch_upsert passes along return_fields_by_field_id
+    results = table.batch_upsert(
+        [{"fields": {cols.TEXT: "Two", cols.NUM: 8}}],
+        key_fields=[cols.TEXT],
+        return_fields_by_field_id=True,
+    )
+    assert results == [
+        {
+            "id": two["id"],
+            "createdTime": two["createdTime"],
+            "fields": {cols.TEXT_ID: "Two", cols.NUM_ID: 8},
+        }
+    ]
+
+
 def test_integration_formula_datetime(table: Table, cols):
     VALUE = datetime.utcnow()
     str_value = fo.to_airtable_value(VALUE)
@@ -88,7 +233,6 @@ def test_integration_formula_datetime(table: Table, cols):
     assert rv_first and rv_first["id"] == rv_create["id"]
 
 
-@pytest.mark.integration
 def test_integration_formula_date_filter(table: Table, cols):
     dt = datetime.utcnow()
     date = dt.date()
@@ -105,7 +249,6 @@ def test_integration_formula_date_filter(table: Table, cols):
     assert set([r["id"] for r in rv_all]) == set([r["id"] for r in created])
 
 
-@pytest.mark.integration
 def test_integration_field_equals_with_quotes(table: Table, cols):
     VALUE = "Contact's Name {}".format(uuid4())
     rv_create = table.create({cols.TEXT: VALUE})
@@ -118,7 +261,6 @@ def test_integration_field_equals_with_quotes(table: Table, cols):
     assert rv_first and rv_first["id"] == rv_create["id"]
 
 
-@pytest.mark.integration
 def test_integration_formula_composition(table: Table, cols):
     text = "Mike's Thing {}".format(uuid4())
     num = 1
@@ -137,14 +279,12 @@ def test_integration_formula_composition(table: Table, cols):
     assert rv_first["id"] == rv_create["id"]
 
 
-@pytest.mark.integration
 def test_integration_attachment(table, cols, valid_img_url):
     rec = table.create({cols.ATTACHMENT: [attachment(valid_img_url)]})
     rv_get = table.get(rec["id"])
     assert rv_get["fields"]["attachment"][0]["filename"] == "logo.png"
 
 
-@pytest.mark.integration
 def test_integration_attachment_multiple(table, cols, valid_img_url):
     rec = table.create(
         {

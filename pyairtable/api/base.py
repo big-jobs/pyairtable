@@ -1,12 +1,12 @@
 from typing import List, Optional
 
 from .abstract import ApiAbstract, TimeoutTuple
-from .. import compat
+from .retrying import Retry
 
 
 class Base(ApiAbstract):
     """
-    Represents an Airtable Base. This calss is similar to :class:`~pyairtable.api.Api`,
+    Represents an Airtable Base. This class is similar to :class:`~pyairtable.api.Api`,
     except ``base_id`` is provided on init instead of provided on each method call.
 
     Usage:
@@ -22,7 +22,8 @@ class Base(ApiAbstract):
         base_id: str,
         *,
         timeout: Optional[TimeoutTuple] = None,
-        retry_strategy: Optional["compat.Retry"] = None,
+        retry_strategy: Optional[Retry] = None,
+        endpoint_url: str = "https://api.airtable.com",
     ):
         """
         Args:
@@ -35,7 +36,12 @@ class Base(ApiAbstract):
         """
 
         self.base_id = base_id
-        super().__init__(api_key, timeout=timeout, retry_strategy=retry_strategy)
+        super().__init__(
+            api_key,
+            timeout=timeout,
+            retry_strategy=retry_strategy,
+            endpoint_url=endpoint_url,
+        )
 
     def get_table(self, table_name: str) -> "Table":
         """
@@ -81,20 +87,38 @@ class Base(ApiAbstract):
         """
         return super()._all(self.base_id, table_name, **options)
 
-    def create(self, table_name: str, fields: dict, typecast=False):
+    def create(
+        self,
+        table_name: str,
+        fields: dict,
+        typecast=False,
+        return_fields_by_field_id=False,
+    ):
         """
         Same as :meth:`Api.create <pyairtable.api.Api.create>`
         but without ``base_id`` arg.
         """
-        return super()._create(self.base_id, table_name, fields, typecast=typecast)
+        return super()._create(
+            self.base_id,
+            table_name,
+            fields,
+            typecast=typecast,
+            return_fields_by_field_id=return_fields_by_field_id,
+        )
 
-    def batch_create(self, table_name: str, records, typecast=False):
+    def batch_create(
+        self, table_name: str, records, typecast=False, return_fields_by_field_id=False
+    ):
         """
         Same as :meth:`Api.batch_create <pyairtable.api.Api.batch_create>`
         but without ``base_id`` arg.
         """
         return super()._batch_create(
-            self.base_id, table_name, records, typecast=typecast
+            self.base_id,
+            table_name,
+            records,
+            typecast=typecast,
+            return_fields_by_field_id=return_fields_by_field_id,
         )
 
     def update(
@@ -119,14 +143,47 @@ class Base(ApiAbstract):
         )
 
     def batch_update(
-        self, table_name: str, records: List[dict], replace=False, typecast=False
+        self,
+        table_name: str,
+        records: List[dict],
+        replace=False,
+        typecast=False,
+        return_fields_by_field_id=False,
     ):
         """
         Same as :meth:`Api.batch_update <pyairtable.api.Api.batch_update>`
         but without ``base_id`` arg.
         """
         return super()._batch_update(
-            self.base_id, table_name, records, replace=replace, typecast=typecast
+            self.base_id,
+            table_name,
+            records,
+            replace=replace,
+            typecast=typecast,
+            return_fields_by_field_id=return_fields_by_field_id,
+        )
+
+    def batch_upsert(
+        self,
+        table_name: str,
+        records: List[dict],
+        key_fields: List[str],
+        replace=False,
+        typecast=False,
+        return_fields_by_field_id=False,
+    ):
+        """
+        Same as :meth:`Api.batch_upsert <pyairtable.api.Api.batch_upsert>`
+        but without ``base_id`` arg.
+        """
+        return super()._batch_upsert(
+            self.base_id,
+            table_name,
+            records,
+            key_fields=key_fields,
+            replace=replace,
+            typecast=typecast,
+            return_fields_by_field_id=return_fields_by_field_id,
         )
 
     def delete(self, table_name: str, record_id: str):
