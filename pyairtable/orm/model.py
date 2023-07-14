@@ -188,7 +188,7 @@ class Model:
             )
 
     @classmethod
-    @lru_cache
+    @lru_cache(maxsize=128)
     def get_api(cls) -> Api:
         return Api(
             api_key=cls._get_meta("api_key"),

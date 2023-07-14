@@ -55,7 +55,7 @@ class Base:
     def __repr__(self) -> str:
         return f"<pyairtable.Base base_id={self.id!r}>"
 
-    @lru_cache
+    @lru_cache(maxsize=128)
     def table(self, table_name: str) -> "pyairtable.api.table.Table":
         """
         Returns a new :class:`Table` instance using all shared
