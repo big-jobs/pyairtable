@@ -260,7 +260,7 @@ class UserAndScopesDict(TypedDict, total=False):
     scopes: List[str]
 
 
-@lru_cache
+@lru_cache(maxsize=128)
 def _create_model_from_typeddict(cls: Type[T]) -> Type[pydantic.BaseModel]:
     """
     Creates a pydantic model from a TypedDict to use as a validator.

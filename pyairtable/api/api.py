@@ -85,7 +85,7 @@ class Api:
     def __repr__(self) -> str:
         return "<pyairtable.Api>"
 
-    @lru_cache
+    @lru_cache(maxsize=128)
     def base(self, base_id: str) -> "pyairtable.api.base.Base":
         """
         Returns a new :class:`Base` instance that uses this instance of :class:`Api`.
