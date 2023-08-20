@@ -220,9 +220,25 @@ class Field(Generic[T_API, T_ORM], metaclass=abc.ABCMeta):
 #: A generic Field whose internal and API representations are the same type.
 _BasicField: TypeAlias = Field[T, T]
 
-
 #: An alias for any type of Field.
 AnyField: TypeAlias = _BasicField[Any]
+
+
+class ListFieldCustom(Field):
+    """Airtable List field."""
+
+    def to_record_value(self, value: Any) -> list:
+        return list(value)
+
+    def to_internal_value(self, value: list) -> list:
+        return list(value)
+
+    def valid_or_raise(self, value) -> None:
+        if not isinstance(value, list):
+            raise ValueError(f"ListField '{self.field_name}' value ({value}) must be a 'list'")
+
+    def __get__(self, *args, **kwargs) -> Optional[list]:
+        return super().__get__(*args, **kwargs)
 
 
 class TextField(_BasicField[str]):
@@ -234,6 +250,14 @@ class TextField(_BasicField[str]):
     """
 
     valid_types = str
+
+
+# class EmailField(TextField):
+#     """Airtable Email field. Uses ``str`` to store value"""
+#
+#     def valid_or_raise(self, value) -> None:
+#         if not isinstance(value, str):
+#             raise ValueError("EmailField value must be 'str'")
 
 
 class _NumericField(Generic[T], _BasicField[T]):
@@ -357,6 +381,7 @@ class DateField(Field[str, date]):
 class DurationField(Field[int, timedelta]):
     """
     Duration field. Accepts only `timedelta <https://docs.python.org/3/library/datetime.html#timedelta-objects>`_ values.
+    .. versionadded:: 1.5.0
 
     See `Duration <https://airtable.com/developers/web/api/field-model#durationnumber>`__.
     Airtable's API returns this as a number of seconds.
@@ -519,13 +544,20 @@ class LinkField(_ListField[RecordId, T_Linked]):
             mod = importlib.import_module(modpath)
             cls = getattr(mod, clsname)
             self._linked_model = cast(Type[T_Linked], cls)
-
         elif self._linked_model is _LinkFieldOptions.LinkSelf:
             if self._model is None:
                 raise RuntimeError(f"{self._description} not created on a Model")
             self._linked_model = cast(Type[T_Linked], self._model)
 
         return self._linked_model
+
+    def valid_or_raise(self, value) -> None:
+        if not hasattr(value, "__iter__"):
+            raise TypeError("LinkField value must be iterable")
+        for model_instance in value:
+            if not isinstance(model_instance, self._model):
+                raise ValueError("must be model instance")
+
 
     def _repr_fields(self) -> List[Tuple[str, Any]]:
         return [
@@ -534,6 +566,9 @@ class LinkField(_ListField[RecordId, T_Linked]):
             ("readonly", self.readonly),
             ("lazy", self._lazy),
         ]
+        # commented this to remove caching for linked field.
+        # self._model._linked_cache.update({m.id: m for m in linked_models})
+        return linked_models
 
     def _get_list_value(self, instance: "Model") -> List[T_Linked]:
         """

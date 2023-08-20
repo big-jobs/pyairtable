@@ -298,6 +298,7 @@ class Model:
         Create an instance from a record dict.
         """
         name_field_map = cls._field_name_descriptor_map()
+
         # Convert Column Names into model field names
         field_values = {
             # Use field's to_internal_value to cast into model fields
@@ -324,6 +325,17 @@ class Model:
 
         Args:
             record_id: |arg_record_id|
+
+            fetch:
+
+        Keyword Args:
+            fetch: If `True`, record will be fetched and fields will be
+                updated. If `False`, a new instance is created with the provided `id`,
+                but field values are unset. Default is `True`.
+
+        Returns:
+            (``Model``): Instance of model
+
             fetch: If ``True``, record will be fetched and field values will be
                 updated. If ``False``, a new instance is created with the provided ID,
                 but field values are unset.
