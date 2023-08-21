@@ -220,25 +220,9 @@ class Field(Generic[T_API, T_ORM], metaclass=abc.ABCMeta):
 #: A generic Field whose internal and API representations are the same type.
 _BasicField: TypeAlias = Field[T, T]
 
+
 #: An alias for any type of Field.
 AnyField: TypeAlias = _BasicField[Any]
-
-
-class ListFieldCustom(Field):
-    """Airtable List field."""
-
-    def to_record_value(self, value: Any) -> list:
-        return list(value)
-
-    def to_internal_value(self, value: list) -> list:
-        return list(value)
-
-    def valid_or_raise(self, value) -> None:
-        if not isinstance(value, list):
-            raise ValueError(f"ListField '{self.field_name}' value ({value}) must be a 'list'")
-
-    def __get__(self, *args, **kwargs) -> Optional[list]:
-        return super().__get__(*args, **kwargs)
 
 
 class TextField(_BasicField[str]):
