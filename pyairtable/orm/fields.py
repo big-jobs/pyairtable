@@ -252,14 +252,6 @@ class TextField(_BasicField[str]):
     valid_types = str
 
 
-# class EmailField(TextField):
-#     """Airtable Email field. Uses ``str`` to store value"""
-#
-#     def valid_or_raise(self, value) -> None:
-#         if not isinstance(value, str):
-#             raise ValueError("EmailField value must be 'str'")
-
-
 class _NumericField(Generic[T], _BasicField[T]):
     """
     Base class for Number, Float, and Integer. Shares a common validation rule.
@@ -551,14 +543,6 @@ class LinkField(_ListField[RecordId, T_Linked]):
 
         return self._linked_model
 
-    def valid_or_raise(self, value) -> None:
-        if not hasattr(value, "__iter__"):
-            raise TypeError("LinkField value must be iterable")
-        for model_instance in value:
-            if not isinstance(model_instance, self._model):
-                raise ValueError("must be model instance")
-
-
     def _repr_fields(self) -> List[Tuple[str, Any]]:
         return [
             ("model", self._linked_model),
@@ -566,9 +550,6 @@ class LinkField(_ListField[RecordId, T_Linked]):
             ("readonly", self.readonly),
             ("lazy", self._lazy),
         ]
-        # commented this to remove caching for linked field.
-        # self._model._linked_cache.update({m.id: m for m in linked_models})
-        return linked_models
 
     def _get_list_value(self, instance: "Model") -> List[T_Linked]:
         """
