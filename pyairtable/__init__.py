@@ -1,4 +1,4 @@
-__version__ = "2.1.0.post20230820"
+__version__ = "2.1.0.post20230821"
 
 from .api import Api, Base, Table
 from .api.retrying import retry_strategy
