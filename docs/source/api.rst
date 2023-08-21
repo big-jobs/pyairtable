@@ -1,4 +1,6 @@
-.. include:: substitutions.rst
+.. include:: _warn_latest.rst
+.. include:: _substitutions.rst
+
 
 API Reference
 =============
@@ -18,6 +20,7 @@ Module: pyairtable
 
 .. autofunction:: pyairtable.retry_strategy
 
+
 Module: pyairtable.api.types
 *******************************
 
@@ -32,11 +35,19 @@ Module: pyairtable.formulas
     :members:
 
 
+Module: pyairtable.models
+*******************************
+
+.. automodule:: pyairtable.models
+    :members:
+
+
 Module: pyairtable.orm
 *******************************
 
 .. autoclass:: pyairtable.orm.Model
     :members:
+
 
 Module: pyairtable.orm.fields
 *******************************

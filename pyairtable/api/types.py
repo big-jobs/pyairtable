@@ -5,8 +5,9 @@ and return values to various pyAirtable methods.
 from functools import lru_cache
 from typing import Any, Dict, List, Optional, Type, TypeVar, Union, cast
 
-import pydantic
 from typing_extensions import Required, TypeAlias, TypedDict
+
+from pyairtable._compat import pydantic
 
 T = TypeVar("T")
 
@@ -213,6 +214,16 @@ class RecordDict(TypedDict):
 class CreateRecordDict(TypedDict):
     """
     A ``dict`` representing the payload passed to the Airtable API to create a record.
+
+    Field values must each be a :data:`~pyairtable.api.types.WritableFieldValue`.
+
+    Usage:
+        >>> table.create({
+        ...     "fields": {
+        ...         "Field Name": "Field Value",
+        ...         "Other Field": ["Value 1", "Value 2"]
+        ...     }
+        ... })
     """
 
     fields: WritableFields
@@ -222,12 +233,23 @@ class UpdateRecordDict(TypedDict):
     """
     A ``dict`` representing the payload passed to the Airtable API to update a record.
 
+    Field values must each be a :data:`~pyairtable.api.types.WritableFieldValue`.
+
     Usage:
-        >>> update_records = [
-        ...     {"id": "recAdw9EjV90xbW", "fields": {"Email": "alice@example.com"}},
-        ...     {"id": "recAdw9EjV90xbX", "fields": {"Email": "bob@example.com"}},
-        ... ]
-        >>> table.batch_update(update_records)
+        >>> table.batch_update([
+        ...     {
+        ...         "id": "recAdw9EjV90xbW",
+        ...         "fields": {
+        ...             "Email": "alice@example.com"
+        ...         }
+        ...     },
+        ...     {
+        ...         "id": "recAdw9EjV90xbX",
+        ...         "fields": {
+        ...             "Email": "bob@example.com"
+        ...         }
+        ...     }
+        ... ])
     """
 
     id: RecordId
@@ -245,6 +267,27 @@ class RecordDeletedDict(TypedDict):
 
     id: RecordId
     deleted: bool
+
+
+class UpsertResultDict(TypedDict):
+    """
+    A ``dict`` representing the payload returned by the Airtable API after an upsert.
+    For more details on this data structure, see the
+    `Update multiple records <https://airtable.com/developers/web/api/update-multiple-records>`__
+    API documentation.
+
+    Usage:
+        >>> table.batch_upsert(records, key_fields=["Name"])
+        {
+            'createdRecords': [...],
+            'updatedRecords': [...],
+            'records': [...]
+        }
+    """
+
+    createdRecords: List[RecordId]
+    updatedRecords: List[RecordId]
+    records: List[RecordDict]
 
 
 class UserAndScopesDict(TypedDict, total=False):
@@ -266,7 +309,8 @@ def _create_model_from_typeddict(cls: Type[T]) -> Type[pydantic.BaseModel]:
     Creates a pydantic model from a TypedDict to use as a validator.
     Memoizes the result so we don't have to call this more than once per class.
     """
-    return pydantic.create_model_from_typeddict(cls)
+    # Mypy can't tell that we are using pydantic v1.
+    return pydantic.create_model_from_typeddict(cls)  # type: ignore[no-any-return, operator, unused-ignore]
 
 
 def assert_typed_dict(cls: Type[T], obj: Any) -> T:

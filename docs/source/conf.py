@@ -9,6 +9,10 @@ import pyairtable.api.types
 import pyairtable.orm.fields
 from pyairtable import __version__ as version
 
+if typing.TYPE_CHECKING:
+    import sphinx.util.tags
+
+
 extensions = [
     "sphinx.ext.autodoc",
     "sphinx.ext.todo",
@@ -20,6 +24,7 @@ extensions = [
     "sphinx.ext.autosectionlabel",
     # "autoapi.extension",
     "sphinx_autodoc_typehints",
+    "sphinxcontrib.autodoc_pydantic",
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -40,6 +45,14 @@ autodoc_default_options = {
     "exclude-members": "__new__",
 }
 autodoc_member_order = "bysource"
+autoclass_content = "class"
+
+# See https://autodoc-pydantic.readthedocs.io/en/stable/users/configuration.html
+autodoc_pydantic_field_show_alias = False
+autodoc_pydantic_model_member_order = "bysource"
+autodoc_pydantic_model_show_config_summary = False
+autodoc_pydantic_model_show_field_summary = False
+autodoc_pydantic_model_show_json = False
 
 # See https://github.com/tox-dev/sphinx-autodoc-typehints#options
 typehints_defaults = "comma"
@@ -56,7 +69,11 @@ def typehints_formatter(annotation, config):
             continue
         if isinstance(value, type) and issubclass(value, dict):  # TypedDict
             return f":data:`~pyairtable.api.types.{name}`"
-        if isinstance(value, typing._GenericAlias):  # Union, Dict, etc.
+        # At this point there's no way to determine whether an annotation
+        # which was evaluated to Dict[str, Any] is Fields or something unrelated,
+        # so we limit this formatter to just type aliases which we *know* are unique.
+        # TODO: get *all* type alias annotations properly reflected in docs.
+        if name in ("WritableFieldValue", "WritableField"):
             return f":data:`~pyairtable.api.types.{name}`"
 
     if annotation == typing.Literal[pyairtable.orm.fields._LinkFieldOptions.LinkSelf]:
@@ -69,6 +86,14 @@ def typehints_formatter(annotation, config):
 
 # Needed for autoapi to not choke on retrying.Retry
 suppress_warnings = ["autoapi.python_import_resolution"]
+
+
+# This allows us to insert a warning on the 'latest' build; see _warn_latest.rst
+# and https://www.sphinx-doc.org/en/master/usage/configuration.html#conf-tags
+# and https://docs.readthedocs.io/en/stable/reference/environment-variables.html
+if _rtfd_version := os.environ.get("READTHEDOCS_VERSION"):
+    tags: "sphinx.util.tags.Tags"  # this is just to help type-checking IDEs
+    tags.add(f"readthedocs_{_rtfd_version}")  # noqa
 
 
 ################################

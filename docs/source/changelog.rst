@@ -2,11 +2,23 @@
 Changelog
 =========
 
-2.0.0 (TBD)
+2.1.0 (2023-08-18)
+------------------------
+
+* Added classes and methods for managing :ref:`webhooks`.
+  - `PR #291 <https://github.com/gtalarico/pyairtable/pull/291>`_.
+* Added compatibility with Pydantic 2.0.
+  - `PR #288 <https://github.com/gtalarico/pyairtable/pull/288>`_.
+
+2.0.0 (2023-07-31)
 ------------------------
 
 See :ref:`Migrating from 1.x to 2.0` for detailed migration notes.
 
+* Added :class:`~pyairtable.models.Comment` class; see :ref:`Commenting on Records`.
+  - `PR #282 <https://github.com/gtalarico/pyairtable/pull/282>`_.
+* :meth:`~pyairtable.Table.batch_upsert` now returns the full payload from the Airtable API.
+  - `PR #281 <https://github.com/gtalarico/pyairtable/pull/281>`_.
 * :ref:`ORM` module is no longer experimental and has a stable API.
   - `PR #277 <https://github.com/gtalarico/pyairtable/pull/277>`_.
 * Added :meth:`Model.batch_save <pyairtable.orm.Model.batch_save>`
@@ -16,6 +28,8 @@ See :ref:`Migrating from 1.x to 2.0` for detailed migration notes.
   - `PR #273 <https://github.com/gtalarico/pyairtable/pull/273>`_.
 * pyAirtable will automatically retry requests when throttled by Airtable's QPS.
   - `PR #272 <https://github.com/gtalarico/pyairtable/pull/272>`_.
+* ORM Meta attributes can now be defined as callables.
+  - `PR #268 <https://github.com/gtalarico/pyairtable/pull/268>`_.
 * Removed ``ApiAbstract``.
   - `PR #267 <https://github.com/gtalarico/pyairtable/pull/267>`_.
 * Implemented strict type annotations on all functions and methods.

@@ -24,7 +24,8 @@ class Api:
 
     Usage:
         >>> api = Api('auth_token')
-        >>> api.all('base_id', 'table_name')
+        >>> table = api.table('base_id', 'table_name')
+        >>> records = table.all()
     """
 
     VERSION = "v0"
@@ -180,8 +181,48 @@ class Api:
                     err_msg += " [Error: {}]".format(error_dict["error"])
             exc.args = (*exc.args, err_msg)
             raise exc
-        else:
-            return response.json()
+
+        # Some Airtable endpoints will respond with an empty body and a 200.
+        if not response.text:
+            return None
+        return response.json()
+
+    def iterate_requests(
+        self,
+        method: str,
+        url: str,
+        fallback: Optional[Tuple[str, str]] = None,
+        options: Optional[Dict[str, Any]] = None,
+        offset_field: str = "offset",
+    ) -> Iterator[Any]:
+        """
+        Makes one or more requests and iterates through each result.
+
+        If the response payload contains an 'offset' value, this method will perform
+        another request with that offset value as a parameter (query params for GET,
+        body payload for POST/PATCH/etc).
+
+        If the response payload is not a 'dict', it will be yielded as normal
+        and the method will return.
+
+        Args:
+            method: HTTP method to use.
+            url: The URL we're attempting to call.
+            fallback: The method and URL to use if we have to convert a GET to a POST.
+            options: Airtable-specific query params to use while fetching records.
+                See :ref:`Parameters` for valid options.
+            offset_field: The key to use in the API response to determine whether
+                there are additional pages to retrieve.
+        """
+        options = options or {}
+        while True:
+            response = self.request(method, url, fallback=fallback, options=options)
+            yield response
+            if not isinstance(response, dict):
+                return
+            if not (offset := response.get(offset_field)):
+                return
+            options = {**options, offset_field: offset}
 
     def chunked(self, iterable: Sequence[T]) -> Iterator[Sequence[T]]:
         """

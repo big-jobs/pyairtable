@@ -587,7 +587,8 @@ class LinkField(_ListField[RecordId, T_Linked]):
             new_records = {
                 record.id: record
                 for record in self.linked_model.from_ids(
-                    cast(List[RecordId], new_record_ids)
+                    cast(List[RecordId], new_record_ids),
+                    fetch=(not self._lazy),
                 )
             }
         # If the list contains record IDs, replace the contents with instances.
@@ -835,6 +836,23 @@ class UrlField(TextField):
 
     See `Url <https://airtable.com/developers/web/api/field-model#urltext>`__.
     """
+
+
+class ListFieldCustom(Field):
+    """Airtable List field."""
+
+    def to_record_value(self, value: Any) -> list:
+        return list(value)
+
+    def to_internal_value(self, value: list) -> list:
+        return list(value)
+
+    def valid_or_raise(self, value) -> None:
+        if not isinstance(value, list):
+            raise ValueError(f"ListField '{self.field_name}' value ({value}) must be a 'list'")
+
+    def __get__(self, *args, **kwargs) -> Optional[list]:
+        return super().__get__(*args, **kwargs)
 
 
 #: Set of all Field subclasses exposed by the library.

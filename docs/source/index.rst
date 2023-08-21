@@ -1,5 +1,7 @@
+.. include:: _warn_latest.rst
+.. include:: _substitutions.rst
+
 .. image:: _static/logo.svg
-.. include:: substitutions.rst
 
 pyAirtable
 ==========
@@ -14,7 +16,7 @@ pyAirtable
    `GitHub <https://github.com/gtalarico/pyairtable>`_
 
 
-   Latest Release: |version|
+   Version: |version|
 
 
 .. toctree::
@@ -25,6 +27,7 @@ pyAirtable
    getting-started
    tables
    orm
+   webhooks
    metadata
    migrations
    api
@@ -36,6 +39,7 @@ pyAirtable
 
    about
    changelog
-   Airtable API Docs <https://airtable.com/api>
+   contributing
    GitHub <https://github.com/gtalarico/pyairtable>
    PyPI <https://pypi.org/project/pyairtable/>
+   Airtable API <https://airtable.com/api>

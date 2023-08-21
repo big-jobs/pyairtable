@@ -1,17 +1,18 @@
+import posixpath
 import urllib.parse
 import warnings
 from typing import Any, Iterator, List, Optional, Union, overload
 
-import pyairtable.api.api
-import pyairtable.api.base
+import pyairtable.models
 from pyairtable.api.retrying import Retry
 from pyairtable.api.types import (
     FieldName,
-    Fields,
     RecordDeletedDict,
     RecordDict,
     RecordId,
     UpdateRecordDict,
+    UpsertResultDict,
+    WritableFields,
     assert_typed_dict,
     assert_typed_dicts,
 )
@@ -27,8 +28,10 @@ class Table:
         >>> records = table.all()
     """
 
-    api: "pyairtable.api.api.Api"
+    #: The base that this table belongs to.
     base: "pyairtable.api.base.Base"
+
+    #: Can be either the table name or the table ID (``tblXXXXXXXXXXXXXX``).
     name: str
 
     @overload
@@ -97,7 +100,6 @@ class Table:
                 f" got ({type(api_key)}, {type(base_id)}, {type(table_name)})"
             )
 
-        self.api = base.api
         self.base = base
         self.name = table_name
 
@@ -107,15 +109,22 @@ class Table:
     @property
     def url(self) -> str:
         """
-        Return the URL for this table.
+        Returns the URL for this table.
         """
         return self.api.build_url(self.base.id, urllib.parse.quote(self.name, safe=""))
 
-    def record_url(self, record_id: RecordId) -> str:
+    def record_url(self, record_id: RecordId, *components: str) -> str:
         """
-        Return the URL for the given record ID.
+        Returns the URL for the given record ID, with optional trailing components.
         """
-        return f"{self.url}/{record_id}"
+        return posixpath.join(self.url, record_id, *components)
+
+    @property
+    def api(self) -> "pyairtable.api.api.Api":
+        """
+        Returns the same API connection as table's :class:`~pyairtable.Base`.
+        """
+        return self.base.api
 
     def get(self, record_id: RecordId, **options: Any) -> RecordDict:
         """
@@ -164,29 +173,22 @@ class Table:
             time_zone: |kwarg_time_zone|
             return_fields_by_field_id: |kwarg_return_fields_by_field_id|
         """
-        offset = None
-        while True:
-            if offset:
-                options.update({"offset": offset})
-            data = self.api.request(
-                method="get",
-                url=self.url,
-                fallback=("post", f"{self.url}/listRecords"),
-                options=options,
-            )
-            records = assert_typed_dicts(RecordDict, data.get("records", []))
-            yield records
-            offset = data.get("offset")
-            if not offset:
-                break
+        for page in self.api.iterate_requests(
+            method="get",
+            url=self.url,
+            fallback=("post", f"{self.url}/listRecords"),
+            options=options,
+        ):
+            yield assert_typed_dicts(RecordDict, page.get("records", []))
 
     def all(self, **options: Any) -> List[RecordDict]:
         """
         Retrieves all matching records in a single list.
 
-        >>> api.all('base_id', 'table_name', view='MyView', fields=['ColA', '-ColB'])
+        >>> table = api.table('base_id', 'table_name')
+        >>> table.all(view='MyView', fields=['ColA', '-ColB'])
         [{'fields': ...}, ...]
-        >>> api.all('base_id', 'table_name', max_records=50)
+        >>> table.all(max_records=50)
         [{'fields': ...}, ...]
 
         Keyword Args:
@@ -229,7 +231,7 @@ class Table:
 
     def create(
         self,
-        fields: Fields,
+        fields: WritableFields,
         typecast: bool = False,
         return_fields_by_field_id: bool = False,
     ) -> RecordDict:
@@ -237,7 +239,8 @@ class Table:
         Creates a new record
 
         >>> record = {'Name': 'John'}
-        >>> api.create('base_id', 'table_name', record)
+        >>> table = api.table('base_id', 'table_name')
+        >>> table.create(record)
 
         Args:
             fields: Fields to insert. Must be a dict with field names or IDs as keys.
@@ -257,7 +260,7 @@ class Table:
 
     def batch_create(
         self,
-        records: List[Fields],
+        records: List[WritableFields],
         typecast: bool = False,
         return_fields_by_field_id: bool = False,
     ) -> List[RecordDict]:
@@ -303,7 +306,7 @@ class Table:
     def update(
         self,
         record_id: RecordId,
-        fields: Fields,
+        fields: WritableFields,
         replace: bool = False,
         typecast: bool = False,
     ) -> RecordDict:
@@ -373,7 +376,7 @@ class Table:
         replace: bool = False,
         typecast: bool = False,
         return_fields_by_field_id: bool = False,
-    ) -> List[RecordDict]:
+    ) -> UpsertResultDict:
         """
         Updates or creates records in batches, either using ``id`` (if given) or using a set of
         fields (``key_fields``) to look for matches. For more information on how this operation
@@ -390,7 +393,7 @@ class Table:
             return_fields_by_field_id: |kwarg_return_fields_by_field_id|
 
         Returns:
-            The list of updated records.
+            Lists of created/updated record IDs, along with the list of all records affected.
         """
         # The API will reject a request where a record is missing any of fieldsToMergeOn,
         # but we might not reach that error until we've done several batch operations.
@@ -403,8 +406,13 @@ class Table:
             if missing:
                 raise ValueError(f"missing {missing!r} in {record['fields'].keys()!r}")
 
-        updated_records = []
         method = "put" if replace else "patch"
+        result: UpsertResultDict = {
+            "updatedRecords": [],
+            "createdRecords": [],
+            "records": [],
+        }
+
         for chunk in self.api.chunked(records):
             formatted_records = [
                 {k: v for (k, v) in record.items() if k in ("id", "fields")}
@@ -420,9 +428,13 @@ class Table:
                     "performUpsert": {"fieldsToMergeOn": key_fields},
                 },
             )
-            updated_records += assert_typed_dicts(RecordDict, response["records"])
+            result["updatedRecords"].extend(response["updatedRecords"])
+            result["createdRecords"].extend(response["createdRecords"])
+            result["records"].extend(
+                assert_typed_dicts(RecordDict, response["records"])
+            )
 
-        return updated_records
+        return result
 
     def delete(self, record_id: RecordId) -> RecordDeletedDict:
         """
@@ -465,3 +477,79 @@ class Table:
             deleted_records += assert_typed_dicts(RecordDeletedDict, result["records"])
 
         return deleted_records
+
+    def comments(self, record_id: RecordId) -> List["pyairtable.models.Comment"]:
+        """
+        Returns a list of comments on the given record.
+
+        Usage:
+            >>> table = Api.table("appNxslc6jG0XedVM", "tblslc6jG0XedVMNx")
+            >>> table.comments("recMNxslc6jG0XedV")
+            [
+                Comment(
+                    id='comdVMNxslc6jG0Xe',
+                    text='Hello, @[usrVMNxslc6jG0Xed]!',
+                    created_time='2023-06-07T17:46:24.435891',
+                    last_updated_time=None,
+                    mentioned={
+                        'usrVMNxslc6jG0Xed': Mentioned(
+                            display_name='Alice',
+                            email='alice@example.com',
+                            id='usrVMNxslc6jG0Xed',
+                            type='user'
+                        )
+                    },
+                    author=Collaborator(
+                        id='usr0000pyairtable',
+                        email='pyairtable@example.com',
+                        name='Your pyairtable access token'
+                    )
+                )
+            ]
+
+        Args:
+            record_id: |arg_record_id|
+        """
+        url = self.record_url(record_id, "comments")
+        return [
+            pyairtable.models.Comment.from_api(
+                api=self.api,
+                url=self.record_url(record_id, "comments", comment["id"]),
+                obj=comment,
+            )
+            for page in self.api.iterate_requests("GET", url)
+            for comment in page["comments"]
+        ]
+
+    def add_comment(
+        self,
+        record_id: RecordId,
+        text: str,
+    ) -> "pyairtable.models.Comment":
+        """
+        Creates a comment on a record.
+        See `Create comment <https://airtable.com/developers/web/api/create-comment>`_ for details.
+
+        Usage:
+            >>> table = Api.table("appNxslc6jG0XedVM", "tblslc6jG0XedVMNx")
+            >>> comment = table.add_comment("recMNxslc6jG0XedV", "Hello, @[usrVMNxslc6jG0Xed]!")
+            >>> comment.text = "Never mind!"
+            >>> comment.save()
+            >>> comment.delete()
+
+        Args:
+            record_id: |arg_record_id|
+            text: The text of the comment. Use ``@[usrIdentifier]`` to mention users.
+        """
+        url = self.record_url(record_id, "comments")
+        response = self.api.request("POST", url, json={"text": text})
+        return pyairtable.models.Comment.from_api(
+            api=self.api,
+            url=self.record_url(record_id, "comments", response["id"]),
+            obj=response,
+        )
+
+
+# These are at the bottom of the module to avoid circular imports
+import pyairtable.api.api  # noqa
+import pyairtable.api.base  # noqa

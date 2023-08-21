@@ -14,29 +14,58 @@ from pyairtable.api.types import (
     WritableFields,
 )
 from pyairtable.formulas import OR, STR_VALUE
+from pyairtable.models import Comment
 from pyairtable.orm.fields import AnyField, Field
 
 
 class Model:
     """
-    This class allows you to create an orm-style class for your Airtable tables.
+    Supports creating ORM-style classes representing Airtable tables.
+    For more details, see :ref:`orm`.
 
-    This is a metaclass and can only be used to define sub-classes.
+    A nested class called ``Meta`` is required and can specify
+    the following attributes:
 
-    The ``Meta`` is reuired and must specify all three attributes: ``base_id``,
-    ``table_id``, and ``api_key``.
+        * ``api_key`` (required) - API key or personal access token.
+        * ``base_id`` (required) - Base ID (not name).
+        * ``table_name`` (required) - Table ID or name.
+        * ``timeout`` - A tuple indicating a connect and read timeout. Defaults to no timeout.
+        * ``typecast`` - |kwarg_typecast| Defaults to ``True``.
 
-    >>> from pyairtable.orm import Model, fields
-    >>> class Contact(Model):
-    ...     first_name = fields.TextField("First Name")
-    ...     age = fields.IntegerField("Age")
-    ...
-    ...     class Meta:
-    ...         base_id = "appaPqizdsNHDvlEm"
-    ...         table_name = "Contact"
-    ...         api_key = "keyapikey"
-    ...         timeout: Optional[Tuple[int, int]] = (5, 5)
-    ...         typecast: bool = True
+    .. code-block:: python
+
+        from pyairtable.orm import Model, fields
+
+        class Contact(Model):
+            first_name = fields.TextField("First Name")
+            age = fields.IntegerField("Age")
+
+            class Meta:
+                base_id = "appaPqizdsNHDvlEm"
+                table_name = "Contact"
+                api_key = "keyapikey"
+                timeout = (5, 5)
+                typecast = True
+
+    You can implement meta attributes as callables if certain values
+    need to be dynamically provided or are unavailable at import time:
+
+    .. code-block:: python
+
+        from pyairtable.orm import Model, fields
+        from your_app.config import get_secret
+
+        class Contact(Model):
+            first_name = fields.TextField("First Name")
+            age = fields.IntegerField("Age")
+
+            class Meta:
+                base_id = "appaPqizdsNHDvlEm"
+                table_name = "Contact"
+
+                @staticmethod
+                def api_key():
+                    return get_secret("AIRTABLE_API_KEY")
     """
 
     id: str = ""
@@ -105,6 +134,18 @@ class Model:
         return {v.field_name: k for k, v in cls._attribute_descriptor_map().items()}
 
     def __init__(self, **fields: Any):
+        """
+        Constructs a model instance with field values based on the given keyword args.
+
+        >>> Contact(name="Alice", birthday=date(1980, 1, 1))
+        <unsaved Contact>
+
+        The keyword argument ``id=`` special-cased and sets the record ID, not a field value.
+
+        >>> Contact(id="recWPqD9izdsNvlE", name="Bob")
+        <Contact id='recWPqD9izdsNvlE'>
+        """
+
         if "id" in fields:
             self.id = fields.pop("id")
 
@@ -124,6 +165,8 @@ class Model:
         if required and not hasattr(cls.Meta, name):
             raise ValueError(f"{cls.__name__}.Meta.{name} must be defined")
         value = getattr(cls.Meta, name, default)
+        if callable(value):
+            value = value()
         if required and value is None:
             raise ValueError(f"{cls.__name__}.Meta.{name} cannot be None")
         return value
@@ -165,15 +208,19 @@ class Model:
         return bool(cls._get_meta("typecast", default=True))
 
     def exists(self) -> bool:
-        """Returns boolean indicating if instance exists (has 'id' attribute)"""
+        """
+        Whether the instance has been saved to Airtable already.
+        """
         return bool(self.id)
 
     def save(self) -> bool:
         """
         Saves or updates a model.
-        If instance has no 'id', it will be created, otherwise updated.
 
-        Returns ``True`` if was created and `False` if it was updated
+        If the instance does not exist already, it will be created;
+        otherwise, the existing record will be updated.
+
+        Returns ``True`` if a record was created and ``False`` if it was updated.
         """
         if self._deleted:
             raise RuntimeError(f"{self.id} was deleted")
@@ -192,7 +239,12 @@ class Model:
         return did_create
 
     def delete(self) -> bool:
-        """Deletes record. Must have 'id' field"""
+        """
+        Deletes the record.
+
+        Raises:
+            ValueError: if the record does not exist.
+        """
         if not self.id:
             raise ValueError("cannot be deleted because it does not have id")
         table = self.get_table()
@@ -368,11 +420,27 @@ class Model:
     @classmethod
     def batch_delete(cls, models: List[SelfType]) -> None:
         """
-        Deletes a list of model instances from Airtable. Raises ``ValueError`` if
-        given a model which has never been saved to Airtable.
+        Deletes a list of model instances from Airtable.
+
+        Raises:
+            ValueError: if the model has not been saved to Airtable.
         """
         if not all(model.id for model in models):
             raise ValueError("cannot delete an unsaved model")
         if not all(isinstance(model, cls) for model in models):
             raise TypeError(set(type(model) for model in models))
         cls.get_table().batch_delete([model.id for model in models])
+
+    def comments(self) -> List[Comment]:
+        """
+        Return a list of comments on this record.
+        See :meth:`Table.comments <pyairtable.Table.comments>`.
+        """
+        return self.get_table().comments(self.id)
+
+    def add_comment(self, text: str) -> Comment:
+        """
+        Add a comment to this record.
+        See :meth:`Table.add_comment <pyairtable.Table.add_comment>`.
+        """
+        return self.get_table().add_comment(self.id, text)
